@@ -1,0 +1,37 @@
+version: "2"
+
+# The standard linters (errcheck, govet, ineffassign, staticcheck, unused) run
+# by default. Add others when they would have caught a bug this repository had.
+linters:
+  enable:
+    # Errors are compared with errors.Is/As, so wrapped errors still match.
+    - errorlint
+    - lll
+    - misspell
+    - unconvert
+
+  settings:
+    lll:
+      line-length: 120
+      tab-width: 4
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$

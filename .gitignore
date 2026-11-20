@@ -1,0 +1,29 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Build output (written by `make build`)
+out/
+
+# Coverage (written by `make coverage` and the Coverage workflow). Anchored,
+# so that .github/workflows/coverage.yml is not ignored.
+/coverage.*
+/profile.cov
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+
+# Python virtual environments (pre-commit)
+venv/
+.venv/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
