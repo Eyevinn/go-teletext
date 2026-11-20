@@ -1,4 +1,4 @@
-# go-teletext
+<img src="images/go-teletext-logo.svg" alt="go-teletext – DVB teletext subtitles in Go" width="480">
 
 [![Go](https://github.com/Eyevinn/go-teletext/workflows/Go/badge.svg)](https://github.com/Eyevinn/go-teletext/actions/workflows/go.yml)
 [![Coverage Status](https://coveralls.io/repos/github/Eyevinn/go-teletext/badge.svg?branch=main)](https://coveralls.io/github/Eyevinn/go-teletext?branch=main)
@@ -120,6 +120,10 @@ See [CONTRIBUTING](CONTRIBUTING.md)
 ## License
 
 This project is licensed under the MIT License, see [LICENSE](LICENSE).
+
+The gopher in the logo is adapted from the Go gopher, created by
+[Renée French](https://reneefrench.blogspot.com/) and licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Support
 

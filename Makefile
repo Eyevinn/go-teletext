@@ -129,6 +129,12 @@ clean:
 install:
 	go install -ldflags "$(VERSION_LDFLAGS)" $(addprefix ./cmd/,$(CMDS))
 
+# images/social-preview.png is the social preview of the repository: the logo at
+# the 1280x640 that GitHub asks for. GitHub has no API for it, so a new one is
+# uploaded by hand in the repository settings.
+images/social-preview.png: images/social-preview.svg images/go-teletext-logo.svg
+	rsvg-convert -o $@ $<
+
 .PHONY: update
 update:
 	go get -t -u ./...
