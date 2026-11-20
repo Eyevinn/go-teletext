@@ -5,9 +5,12 @@
 # are checked, as pre-commit passes .github/ files too, so .git and .venv are
 # skipped explicitly, as is this file, which lists misspellings by design.
 check-hidden = true
-skip = ./.git,./.venv,.codespellrc,./vendor,*/vendor/*,testdata,testdata/*,*/testdata/*,./out,*/out/*,./coverage.*,go.sum
+skip = ./.git,./.venv,.codespellrc,./vendor,*/vendor/*,testdata,testdata/*,*/testdata/*,./out,*/out/*,./coverage.*,go.sum,*.pdf
 # Words codespell mistakes for misspellings, comma-separated. List each with
 # the reason in this comment, e.g. for media code:
 #   ue          - ue(v), unsigned exponential-Golomb syntax element
 #   trun, truns - Track Fragment Run box
 # ignore-words-list = ue,trun,truns
+#   portugues - "Português" as a Level 1 teletext decoder shows it, without X/26
+#   pris      - Swedish and Norwegian for "price", in test subtitles
+ignore-words-list = portugues,pris

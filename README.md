@@ -8,17 +8,110 @@
 
 DVB Teletext parsing and generation in Go, intended to be integrated with MPEG-2 TS streams.
 
+Status: draft. Generation works; parsing is the next step, so that streams can
+be checked by round trip and live sources can be monitored.
+
+- `teletext` (this directory): EN 300 706 coding. Hamming 8/4 and 24/18,
+  packets (header, rows, X/26, X/28/0, M/29/0), Latin, Cyrillic and Greek
+  character sets, a Unicode encoder that falls back to Level 1.5 X/26
+  enhancements, a subtitle page composer, and 25 language presets.
+- `mpegts`: EN 300 472 data units and PES, and a minimal TS muxer
+  (PAT, PMT with teletext descriptor, PCR).
+- `cmd/ttx-gen`: a teletext subtitle test source, to a file, stdout or UDP.
+
 ## Requirements
 
-<!--Add any external project dependencies such as node.js version etc here -->
+Go 1.26 or later.
 
 ## Installation / Usage
 
-<!--Add clear instructions on how to use the project here -->
+```sh
+go install github.com/Eyevinn/go-teletext/cmd/ttx-gen@latest
+```
+
+`ttx-gen` writes one subtitle page per language. Every cue shows a sample
+sentence and the UTC time that equals the PTS of the PES that carries the page
+header, so a player or packager can be checked for both character set
+handling and timing:
+
+```
+Hej på dig, Åsa! Öl är gött.
+Svenska 12:00:02.080 (2)
+```
+
+```sh
+ttx-gen -list                                     # language presets
+ttx-gen -o test.ts -duration 60s                  # file, default 9 languages
+ttx-gen -udp 127.0.0.1:1234 -duration 0           # live, forever
+ttx-gen -live -o - -langs swe,rus > live.ts       # live to stdout
+ttx-gen -start 2026-11-20T12:00:00Z -o fixed.ts   # reproducible file
+```
+
+Other flags: `-pages`, `-period`, `-cue`, `-level15=false` (Level 1 only),
+`-designation auto|x28|m29|none`, `-single-height`, `-hearing-impaired`,
+`-pid`, `-pts-offset`. See `ttx-gen -h`.
+
+Heartbeats: by default every 40 ms without other teletext gets a PES with a
+time filling header (page mFF), so a live segmenter can release subtitle
+segments together with video and audio also when no subtitles are shown.
+`-heartbeat` sets the interval (0 = off), `-heartbeat-kind stuffing` sends
+stuffing data units instead, and `-cues-on 60s -cues-off 30s` adds periods
+without subtitles.
+
+The presets cover the cases decoders handle differently: Level 1 national
+sub-sets, Level 1.5 X/26 accents and G2 characters, and X/28/M/29 designation
+for Polish, Turkish, Romanian, Croatian, Baltic, Cyrillic and Greek.
+
+Without `-i` the stream has teletext only, with PCR on its own PID. With `-i`,
+`ttx-gen` inserts the teletext into an existing transport stream with video and
+audio, following its PCR:
+
+```sh
+ttx-gen -i in.ts -o out.ts                          # file to file
+ttx-gen -i udp://239.0.0.1:1234 -udp 127.0.0.1:5000 # live, multicast in
+ttx-gen -i in.ts -o out.ts -muxrate 3000000         # constant 3 Mbit/s output
+ttx-gen -live -i in.ts -udp 127.0.0.1:5000          # play a file in real time
+```
+
+Teletext packets replace null packets when the input has them (use
+`-pts-offset 200ms` when they come in bursts, as with ffmpeg's `-muxrate`), else
+they are added. `-muxrate` remuxes to a constant bitrate and restamps the PCR.
+Cues show the wall-clock time of their PTS, or the PTS with `-clock pts`.
+See the inserter section of [docs/design.md](docs/design.md).
+
+Using the library:
+
+```go
+lang, _ := teletext.LookupLanguage("swe")
+enc := teletext.NewEncoder(lang.Charset, true)
+addr, _ := teletext.ParsePage("888")
+page, err := teletext.ComposePage(addr, enc, []teletext.Line{{Text: "Hej på dig!"}},
+	teletext.PageOptions{Level15: true})
+// Send page.Header, then at least 20 ms later page.Body, as EN 300 472 data units:
+unit := mpegts.DataUnit(mpegts.DataUnitSubtitle, true, 0, page.Header.Bytes())
+```
+
+## Documentation
+
+- [docs/research.md](docs/research.md): specifications, teletext levels,
+  teletext and EBU STL support in go-astisub and shaka-packager, existing
+  generators, Subtitle Edit.
+- [docs/design.md](docs/design.md): how pages are encoded and scheduled,
+  validation status, limitations.
+- [experiments/](experiments/README.md): a separate module that decodes the
+  generated stream with go-astisub and reproduces its STL issues.
+- `specs/fetch.sh` downloads EN 300 706, EN 300 472, EN 301 775 and EBU Tech 3264.
 
 ## Development
 
-<!--Add clear instructions on how to start development of the project here -->
+```sh
+make check   # tidy, vet, lint
+make test
+make build   # out/ttx-gen
+```
+
+`make pre-commit-install` sets up the pre-commit hooks (formatting, lint,
+tests, codespell, commitlint).
 
 ## Contributing
 
