@@ -3,7 +3,7 @@ all: check test coverage check-licenses build
 
 # Programs to build, each in its own directory under cmd/, e.g.
 # cmd/example/main.go. Add more programs space-separated.
-CMDS = example
+CMDS = ttx-gen
 BINARIES = $(addprefix out/,$(CMDS))
 
 .PHONY: build
@@ -11,15 +11,25 @@ build: $(BINARIES)
 
 # Binaries are built as packages, not as main.go files, so that they carry the
 # version Go embeds from the git tag and commit (see internal/buildinfo.go).
+# The -X flags are for builds from a source archive, without git, where
+# packagers replace the git commands.
 # They are .PHONY because that version is not a file prerequisite: a binary
 # built before a commit or a tag would be kept, still naming the old one. The
 # build cache makes the rebuild cheap.
+VERSION_LDFLAGS = -X github.com/Eyevinn/go-teletext/internal.commitVersion=$$(git describe --tags --always HEAD) \
+	-X github.com/Eyevinn/go-teletext/internal.commitDate=$$(git log -1 --format=%ct)
+
 .PHONY: $(BINARIES)
 $(BINARIES): out/%:
-	go build -o $@ ./cmd/$*
+	go build -ldflags "$(VERSION_LDFLAGS)" -o $@ ./cmd/$*
 
 .PHONY: check
-check: tidy-check vet lint
+check: tidy-check vet lint check-changelog codespell
+
+# Checks the changelog entries in changelog.d, see changelog.d/README.md.
+.PHONY: check-changelog
+check-changelog:
+	scripts/check-changelog.sh
 
 # Fails when go.mod or go.sum is not tidy, without changing them. `make tidy`
 # tidies them.
@@ -90,6 +100,18 @@ codespell: .venv/bin/codespell
 test:
 	go test ./...
 
+# A summary of the tests, from gotestsum (go install gotest.tools/gotestsum@latest).
+.PHONY: testsum
+testsum:
+	gotestsum
+
+# Serves the package documentation as pkg.go.dev shows it, at
+# http://localhost:9999/github.com/Eyevinn/go-teletext
+# (install: go install golang.org/x/pkgsite/cmd/pkgsite@latest).
+.PHONY: open-docs
+open-docs:
+	pkgsite -http localhost:9999
+
 .PHONY: coverage
 coverage:
 	go test -coverpkg=./... -coverprofile=coverage.out ./...
@@ -105,7 +127,17 @@ clean:
 # version, and it installs to $GOBIN, or else the bin directory of `go env GOPATH`.
 .PHONY: install
 install:
-	go install $(addprefix ./cmd/,$(CMDS))
+	go install -ldflags "$(VERSION_LDFLAGS)" $(addprefix ./cmd/,$(CMDS))
+
+# images/social-preview.png is the social preview of the repository: the logo
+# centred on the 1280x640 that GitHub asks for, on the logo's background colour.
+# It is rendered from the logo itself, since an SVG that refers to another file
+# shows without it where SVGs are displayed as images, as on GitHub. GitHub has
+# no API for the social preview, so a new one is uploaded by hand in the
+# repository settings.
+images/social-preview.png: images/go-teletext-logo.svg
+	rsvg-convert --page-width 1280 --page-height 640 --width 1176 --height 470 \
+		--left 52 --top 85 --background-color '#0f172a' -o $@ $<
 
 .PHONY: update
 update:

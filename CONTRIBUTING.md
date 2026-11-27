@@ -5,6 +5,25 @@ as much info as possible to make it easier to reproduce the issue and update uni
 
 # Contributing Code
 
+## Setting up
+
+The module needs Go 1.26 or later. Build, test and check with
+
+    make build
+    make test
+    make check
+
+`make check` runs `go mod tidy -diff`, `go vet`, golangci-lint (if installed), the changelog check
+and codespell. Pre-commit hooks run `go fmt`, golangci-lint, the unit tests, codespell and the
+changelog check, and check the commit message. Install them once per clone with
+
+    make pre-commit-install
+
+which creates a Python virtual environment in `.venv` with `pre-commit` and installs both the
+pre-commit and the commit-msg hook.
+
+## Pull requests
+
 This project uses [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/#summary).
 
 We follow the [GitHub Flow](https://guides.github.com/introduction/flow/index.html) so all contributions happen through pull requests. We actively welcome your pull requests:
@@ -16,6 +35,25 @@ We follow the [GitHub Flow](https://guides.github.com/introduction/flow/index.ht
 5.  Issue that pull request!
 
 When submitting code changes your submissions are understood to be under the same MIT License that covers the project. Feel free to contact Eyevinn Technology if that's a concern.
+
+## Changelog
+
+For each change that users will notice, add a file to [changelog.d](changelog.d/) instead of editing
+[CHANGELOG.md](CHANGELOG.md), as described in [changelog.d/README.md](changelog.d/README.md). Keep
+each entry to one or two lines that say what changed and name the affected API or tool. Separate
+files never conflict, so pull requests can be merged in any order. The entries move into
+CHANGELOG.md when a version is released.
+
+## Releases
+
+Maintainers prepare a release in a pull request `chore: prepare vX.Y.Z release` from a branch
+`release-vX.Y.Z`. It moves the changelog entries into CHANGELOG.md as described in
+[changelog.d/README.md](changelog.d/README.md). Before 1.0, a new API or a breaking change gives a
+minor version and fixes only a patch version.
+
+Tag `vX.Y.Z` only on a commit where `scripts/check-changelog.sh vX.Y.Z` passes. Programs built
+from the tag report its version (`ttx-gen -version`). A tag is permanent for Go modules, since the
+module proxy caches it, so never move or reuse one.
 
 # Code of Conduct
 

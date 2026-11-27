@@ -7,12 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+Changes since the latest release are listed in [changelog.d](changelog.d/).
 
-- initial version of the repo
-
-<!-- At a release, rename [Unreleased] to the version and date, add a new
-[Unreleased] section, and add a link for the version, for example
+<!-- At a release, add the version below [Unreleased] with the entries from changelog.d,
+as described in changelog.d/README.md, add a link for the version, for example
 [0.1.0]: https://github.com/Eyevinn/go-teletext/releases/tag/v0.1.0
 and point [Unreleased] at https://github.com/Eyevinn/go-teletext/compare/v0.1.0...HEAD -->
 
