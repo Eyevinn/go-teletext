@@ -79,6 +79,10 @@ they are added. `-muxrate` remuxes to a constant bitrate and restamps the PCR.
 Cues show the wall-clock time of their PTS, or the PTS with `-clock pts`.
 See the inserter section of [docs/design.md](docs/design.md).
 
+`scripts/all-langs-stream.sh` makes a test stream with video, audio and a page
+for every language preset. [docs/test-stream.md](docs/test-stream.md) lists the
+text of each page and what to look for in a player.
+
 Using the library:
 
 ```go

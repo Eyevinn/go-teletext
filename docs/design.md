@@ -164,9 +164,11 @@ Still to do with independent decoders:
   X/26, X/28, Cyrillic, Greek.
 - shaka-packager (X/26, heartbeat), Subtitle Edit (telxcc port with X/28),
   `stbox` from subtitle-toolbox-go, a real set-top box or TV.
-- VLC was checked with the default designation and double height rows, in a
-  stream with H.264 video and AAC audio. Not checked there: `-designation m29`,
-  `-single-height`, and the time a cue appears against the video.
+- VLC was checked with the stream of [test-stream.md](test-stream.md): default
+  designation and double height rows, with H.264 video and AAC audio. Not
+  checked there: `-designation m29` and `-single-height`. The time a cue
+  appears against the video was only checked roughly, on one cue, because
+  stepping frame by frame in VLC does not update the subtitles.
 - TSDuck `tsp -P analyze` / `tsanalyze` for PSI and timing.
 
 ## Limitations of the draft
