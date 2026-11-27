@@ -295,11 +295,18 @@ func (in *Inserter) WritePES(pes []byte) error {
 			deadline = in.cur + left - nullWaitGuard
 		}
 	}
+	// Wait for a null packet while the input has had one in the last second
+	// (or is in its first second); else the input has none to replace, and the
+	// packets that still wait go out first, to keep the order.
+	wait := in.cfg.ReplaceNull && in.cfg.MuxRate == 0 && in.cur < in.nullAt+maxClockStep
+	if !wait {
+		if err := in.flushDue(true); err != nil {
+			return err
+		}
+	}
 	for i := 0; i < len(b); i += PacketSize {
 		pkt := b[i : i+PacketSize]
-		// Wait for a null packet while the input has had one in the last second
-		// (or is in its first second); else the input has none to replace.
-		if in.cfg.ReplaceNull && in.cfg.MuxRate == 0 && in.cur < in.nullAt+maxClockStep {
+		if wait {
 			in.queue = append(in.queue, queued{append([]byte(nil), pkt...), deadline})
 			continue
 		}

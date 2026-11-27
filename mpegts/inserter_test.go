@@ -15,8 +15,15 @@ const ttxPID = 0x101
 var pages = []mpegts.DescriptorPage{{Language: "swe", Type: mpegts.TypeSubtitle, Magazine: 8, Page: 0x88}}
 
 // run feeds in through an Inserter and writes a stuffing-only teletext PES
-// every 40 ms of input clock, with a PTS 40 ms later. It returns the output and the inserter.
+// every 40 ms of input clock, with a PTS 40 ms later, as ttx-gen does. It
+// returns the output and the inserter.
 func run(t *testing.T, in []byte, cfg mpegts.InserterConfig) ([]byte, *mpegts.Inserter) {
+	t.Helper()
+	return runOffset(t, in, cfg, 40*time.Millisecond)
+}
+
+// runOffset is run with PTS ptsOffset after the tick. Ticks restart at a clock jump.
+func runOffset(t *testing.T, in []byte, cfg mpegts.InserterConfig, ptsOffset time.Duration) ([]byte, *mpegts.Inserter) {
 	t.Helper()
 	var out bytes.Buffer
 	ins := mpegts.NewInserter(&out, cfg)
@@ -28,12 +35,12 @@ func run(t *testing.T, in []byte, cfg mpegts.InserterConfig) ([]byte, *mpegts.In
 			t.Fatal(err)
 		}
 		if ok {
-			if next == 0 {
+			if next == 0 || ins.Jumped() {
 				next = c
 			}
 			for next <= c {
-				// PTS 40 ms after the tick, as ttx-gen does.
-				if err := ins.WritePES(mpegts.TeletextPES(next/300+3600, nil)); err != nil {
+				pts := next/300 + uint64(ptsOffset/time.Microsecond)*9/100
+				if err := ins.WritePES(mpegts.TeletextPES(pts, nil)); err != nil {
 					t.Fatal(err)
 				}
 				next += 1_080_000
@@ -47,6 +54,24 @@ func run(t *testing.T, in []byte, cfg mpegts.InserterConfig) ([]byte, *mpegts.In
 		t.Fatal(err)
 	}
 	return out.Bytes(), ins
+}
+
+// teletextPTS returns the PTS of the teletext PES in a TS, in stream order,
+// and fails on a continuity counter error on the teletext PID.
+func teletextPTS(t *testing.T, b []byte) []uint64 {
+	t.Helper()
+	var pts []uint64
+	for i, p := range split(b)[ttxPID] {
+		if cc := p[3] & 0x0f; cc != byte(i)&0x0f {
+			t.Fatalf("teletext packet %d has continuity counter %d", i, cc)
+		}
+		if mpegts.PayloadStart(p) {
+			x := p[4:]
+			pts = append(pts, uint64(x[9]>>1&7)<<30|uint64(x[10])<<22|uint64(x[11]>>1)<<15|
+				uint64(x[12])<<7|uint64(x[13]>>1))
+		}
+	}
+	return pts
 }
 
 // split returns the packets of a TS grouped by PID.
@@ -208,4 +233,21 @@ func packetsEqual(a, b [][]byte, ignorePCR bool) bool {
 		}
 	}
 	return true
+}
+
+// Teletext packets keep their order when the inserter stops waiting for null
+// packets: with a long PTS offset, packets are still queued at that moment.
+func TestInserterOrderWithoutNulls(t *testing.T) {
+	in := tstest.Synth(tstest.Default(3 * time.Second))
+	cfg := mpegts.InserterConfig{TeletextPID: ttxPID, Pages: pages, ReplaceNull: true}
+	out, _ := runOffset(t, in, cfg, 200*time.Millisecond)
+	pts := teletextPTS(t, out)
+	if len(pts) != 75 {
+		t.Errorf("%d teletext PES, want 75", len(pts))
+	}
+	for i := 1; i < len(pts); i++ {
+		if pts[i] != pts[i-1]+3600 {
+			t.Fatalf("PES %d has PTS %d after %d", i, pts[i], pts[i-1])
+		}
+	}
 }
