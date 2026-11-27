@@ -258,13 +258,16 @@ func (in *Inserter) addPCR(pcr, idx uint64, discontinuity bool) {
 	}
 	in.pcrRaw = pcr
 	full := pcr + in.pcrWraps*pcrWrap
+	// Across a jump, flagged or not (see setClock), the PCR difference is not
+	// the duration of the packets in between, so it gives no bitrate.
+	jump := discontinuity || full > in.lastPCR+maxClockStep || full+maxClockStep < in.lastPCR
 	switch {
-	case !in.havePCR || discontinuity || full <= in.lastPCR || idx <= in.lastIdx:
+	case !in.havePCR || jump || full <= in.lastPCR || idx <= in.lastIdx:
 		in.perPacket = 0
 	default:
 		in.perPacket = float64(full-in.lastPCR) / float64(idx-in.lastIdx)
 	}
-	if !in.havePCR || in.perPacket == 0 && discontinuity {
+	if !in.havePCR || jump {
 		in.Stats.firstPCR, in.Stats.firstPCRIdx = full, idx
 	}
 	in.Stats.lastPCR, in.Stats.lastPCRIdx = full, idx

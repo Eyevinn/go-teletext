@@ -251,3 +251,35 @@ func TestInserterOrderWithoutNulls(t *testing.T) {
 		}
 	}
 }
+
+// A forward PCR step without discontinuity_indicator is a jump: the clock
+// follows it and does not run ahead between the two PCRs around it.
+func TestInserterUnflaggedJump(t *testing.T) {
+	a := tstest.Default(2 * time.Second) // PCR 10 s to 12 s
+	b := a
+	b.StartPCR = 22 * 27_000_000
+	in := append(tstest.Synth(a), tstest.Synth(b)...)
+	for _, rate := range []uint64{0, 2_100_000} {
+		out, ins := run(t, in, mpegts.InserterConfig{TeletextPID: ttxPID, Pages: pages, MuxRate: rate})
+		pts := teletextPTS(t, out)
+		// 2 s of ticks from each part.
+		if len(pts) < 99 || len(pts) > 101 {
+			t.Errorf("rate %d: %d teletext PES, want 100", rate, len(pts))
+		}
+		for i, p := range pts {
+			if s := float64(p) / 90000; s < 10 || s > 12.1 && s < 22 || s > 24.1 {
+				t.Fatalf("rate %d: PES %d has PTS %.3f s", rate, i, s)
+			}
+		}
+		if rate == 0 {
+			continue
+		}
+		// 4 s at the mux rate, with no burst of null packets at the jump.
+		if got, want := len(out)/188, int(4*rate/8/188); got < want-30 || got > want+30 {
+			t.Errorf("rate %d: %d packets, want about %d", rate, got, want)
+		}
+		if r := ins.Stats.InputBitrate(); math.Abs(r-float64(a.Bitrate)) > 1000 {
+			t.Errorf("rate %d: input bitrate %.0f, want %d", rate, r, a.Bitrate)
+		}
+	}
+}
