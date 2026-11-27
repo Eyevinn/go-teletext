@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 )
 
 // pcrWrap is the range of the PCR in 27 MHz units (33-bit base * 300).
@@ -25,8 +26,10 @@ type InserterConfig struct {
 	// MuxRate, when not 0, makes the output constant bitrate at this rate
 	// (bit/s). Every packet goes in the output slot nearest after its input
 	// clock time, empty slots get null packets (input null packets are
-	// dropped) and every PCR is restamped with the clock of its slot. It must
-	// exceed the input bitrate by the teletext bitrate.
+	// dropped) and the PCR of the program is restamped with the clock of its
+	// slot. A PCR on another PID, as of another program, keeps its time base
+	// and is moved by the delay of its packet. It must exceed the input
+	// bitrate by the teletext bitrate.
 	MuxRate uint64
 }
 
@@ -369,8 +372,15 @@ func (in *Inserter) emit(pkt []byte) error {
 				in.cfg.MuxRate, late/27e3)
 		}
 	}
-	if _, has := PCR(pkt); has {
-		pkt = withPCR(pkt, uint64(in.next+0.5)%pcrWrap)
+	if pcr, has := PCR(pkt); has {
+		if PacketPID(pkt) == in.pcrPID {
+			pkt = withPCR(pkt, uint64(in.next+0.5)%pcrWrap)
+		} else {
+			// Another time base, as of another program: keep it, and add the
+			// time the packet moved, which can be up to one slot back.
+			moved := int64(math.Floor(in.next - t + 0.5))
+			pkt = withPCR(pkt, uint64(int64(pcr)+pcrWrap+moved)%pcrWrap)
+		}
 	}
 	in.next += in.slot
 	_, err := in.w.Write(pkt)

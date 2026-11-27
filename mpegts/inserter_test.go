@@ -283,3 +283,61 @@ func TestInserterUnflaggedJump(t *testing.T) {
 		}
 	}
 }
+
+// Constant bitrate output restamps the PCR of the program it follows. A PCR
+// on another PID has its own time base: it is only moved by the delay of its packet.
+func TestInserterConstantBitrateOtherPCR(t *testing.T) {
+	const (
+		otherPID  = 0x200
+		otherBase = 5000 * 27_000_000 // the other clock is this far ahead
+		rate      = 2_100_000
+	)
+	c := tstest.Default(3 * time.Second)
+	in := tstest.Synth(c)
+	others := 0
+	for k := 25; k < len(in)/188; k += 50 {
+		p := in[k*188 : (k+1)*188]
+		if _, has := mpegts.PCR(p); has || mpegts.PacketPID(p) != c.VideoPID {
+			continue
+		}
+		// Packet k is at clock StartPCR + k*Slot of the program that is followed.
+		pcr := c.StartPCR + uint64(float64(k)*c.Slot()) + otherBase
+		p[1], p[2], p[3], p[4], p[5] = otherPID>>8, otherPID&0xff, 0x20, 183, 0x10
+		base, ext := pcr/300, pcr%300
+		p[6], p[7], p[8], p[9] = byte(base>>25), byte(base>>17), byte(base>>9), byte(base>>1)
+		p[10], p[11] = byte(base<<7)|0x7e|byte(ext>>8), byte(ext)
+		others++
+	}
+	out, _ := run(t, in, mpegts.InserterConfig{TeletextPID: ttxPID, Pages: pages, MuxRate: rate})
+
+	slot := 27e6 * 188 * 8 / rate
+	var first, worst float64
+	firstIdx, own, seen := -1, 0, 0
+	for k := 0; k < len(out)/188; k++ {
+		p := out[k*188 : (k+1)*188]
+		pcr, ok := mpegts.PCR(p)
+		if !ok {
+			continue
+		}
+		if mpegts.PacketPID(p) == c.VideoPID {
+			if firstIdx < 0 {
+				first, firstIdx = float64(pcr), k
+			}
+			own++
+			continue
+		}
+		seen++
+		if own < 2 {
+			continue // the input bitrate, and so the clock between PCRs, is not known yet
+		}
+		// The other clock at this output slot.
+		want := first + float64(k-firstIdx)*slot + otherBase
+		worst = max(worst, math.Abs(float64(pcr)-want))
+	}
+	if worst > 3 { // rounding
+		t.Errorf("PCRs on PID %#x are up to %.0f ticks of 27 MHz from the clock of their slot", otherPID, worst)
+	}
+	if seen != others || seen < 50 {
+		t.Errorf("%d PCRs on PID %#x in the output, %d in the input", seen, otherPID, others)
+	}
+}

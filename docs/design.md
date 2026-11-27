@@ -119,8 +119,10 @@ program (`-program`, default the first in the PAT). The work is done by
      kept, which suits software pipelines that time by PCR.
   3. `-muxrate R`: constant bitrate output at R bit/s. Every packet goes in the
      first output slot at or after its input time, empty slots get new null
-     packets (input null packets are dropped), and every PCR is restamped with
-     the time of its slot. PTS/DTS are not changed; packets end up at most a
+     packets (input null packets are dropped), and the PCR of the program is
+     restamped with the time of its slot. A PCR on another PID, as of another
+     program in a multi-program stream, keeps its time base and is moved by the
+     delay of its packet. PTS/DTS are not changed; packets end up at most a
      few slots later than in the input (reported as "packets up to x ms after
      their input time"). R must exceed the peak input rate; the inserter stops
      if the output falls more than 0.5 s behind.
