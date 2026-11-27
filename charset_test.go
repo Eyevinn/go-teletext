@@ -85,6 +85,26 @@ func TestLevel1Fallback(t *testing.T) {
 	}
 }
 
+// The Romanian sub-set has Î at 0x5E and î at 0x7E (EN 300 706 table 36), so
+// both are plain Level 1 codes. Í is not in it and needs an X/26 accent.
+func TestRomanianICircumflex(t *testing.T) {
+	enc := NewEncoder(CharsetRomanian, true)
+	cells, missing := enc.Encode("Îî")
+	if len(missing) > 0 || len(cells) != 2 {
+		t.Fatalf("%d cells, missing %q", len(cells), string(missing))
+	}
+	if cells[0] != (Cell{Code: 0x5E}) || cells[1] != (Cell{Code: 0x7E}) {
+		t.Errorf("Î and î are %+v and %+v, want codes 0x5E and 0x7E without X/26", cells[0], cells[1])
+	}
+	cells, _ = enc.Encode("Í")
+	if len(cells) != 1 || cells[0].Code != 'I' || cells[0].X26 == nil {
+		t.Errorf("Í is %+v, want I with an X/26 acute accent", cells)
+	}
+	if got := decodeCells(CharsetRomanian, cells); got != "Í" {
+		t.Errorf("Í decodes as %q", got)
+	}
+}
+
 func TestNationalOptionHeaderBits(t *testing.T) {
 	// Table 32 value 010 (Swedish/Finnish/Hungarian) is C12=0 C13=1 C14=0,
 	// sent in header byte 7 as C11 C12 C13 C14 = bits 0..3.
