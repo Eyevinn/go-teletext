@@ -156,13 +156,17 @@ Time codes carry no date, and 29.97 Hz streams use drop-frame counting.
 | PES sizes N*184, header 0x24, no adaptation field on the teletext PID, CC, CRC | unit test |
 | go-astisub decodes 13 group 0 languages exactly as the Level 1 view | `experiments/astisub-teletext` |
 | ffprobe sees `dvb_teletext` with all languages and the expected start PTS | manual |
+| VLC 3.0.24 on macOS, which ships the libzvbi decoder, lists all 25 presets as subtitle tracks and shows the text of each correctly: national sub-sets, X/26 accents and G2 characters, X/28 for Latin, Cyrillic and Greek | manual, by eye |
 
 Still to do with independent decoders:
 
 - libzvbi (zvbi `test/decode --ttx`, or ffmpeg built with `--enable-libzvbi`):
   X/26, X/28, Cyrillic, Greek.
 - shaka-packager (X/26, heartbeat), Subtitle Edit (telxcc port with X/28),
-  `stbox` from subtitle-toolbox-go, VLC, a real set-top box or TV.
+  `stbox` from subtitle-toolbox-go, a real set-top box or TV.
+- VLC was checked with the default designation and double height rows, in a
+  stream with H.264 video and AAC audio. Not checked there: `-designation m29`,
+  `-single-height`, and the time a cue appears against the video.
 - TSDuck `tsp -P analyze` / `tsanalyze` for PSI and timing.
 
 ## Limitations of the draft
