@@ -7,8 +7,10 @@ import (
 	"github.com/Eyevinn/go-teletext/mpegts"
 )
 
-// generate writes a teletext-only stream. PCR and PTS are the UTC time of day
-// (90 kHz), so the time printed in a cue equals the PTS of its page header.
+// generate writes a teletext-only stream. PCR and PTS count from the Unix epoch
+// and wrap with their 33 bits (mpegts.EpochPCR), so the clock is continuous over
+// midnight. The time printed in a cue is the time of the PTS of its page header,
+// which mpegts.TimeOfPTS gives back.
 func generate(o *options, s *schedule, w io.Writer, flush func() error) error {
 	cfg := mpegts.DefaultConfig()
 	if o.pid != 0 {
@@ -34,14 +36,14 @@ func generate(o *options, s *schedule, w io.Writer, flush func() error) error {
 				return err
 			}
 		}
-		if err := mux.WritePCR(timeOfDay(now) * 300); err != nil {
+		if err := mux.WritePCR(mpegts.EpochPCR(now)); err != nil {
 			return err
 		}
 		pes, err := s.tick(n, stamp)
 		if err != nil {
 			return err
 		}
-		pts := timeOfDay(now.Add(o.ptsOffset)) & ptsMask
+		pts := mpegts.EpochPTS(now.Add(o.ptsOffset))
 		for _, units := range pes {
 			if err := mux.WritePES(mpegts.TeletextPES(pts, units)); err != nil {
 				return err
@@ -54,11 +56,4 @@ func generate(o *options, s *schedule, w io.Writer, flush func() error) error {
 		}
 	}
 	return flush()
-}
-
-// timeOfDay returns the UTC time of day in 90 kHz units.
-func timeOfDay(t time.Time) uint64 {
-	y, m, d := t.Date()
-	midnight := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-	return uint64(t.Sub(midnight) * 90000 / time.Second)
 }

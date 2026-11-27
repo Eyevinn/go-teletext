@@ -6,8 +6,10 @@ import (
 	"math/bits"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	teletext "github.com/Eyevinn/go-teletext"
 	"github.com/Eyevinn/go-teletext/mpegts"
@@ -38,9 +40,9 @@ func TestRunFile(t *testing.T) {
 	}
 }
 
-// pesSummary is the PTS (ms after the start) and the page headers of one teletext PES.
+// pesSummary is the PTS and the page headers of one teletext PES.
 type pesSummary struct {
-	ms      int64
+	pts     uint64
 	headers []string // e.g. "888", "8FF"
 	rows    int
 }
@@ -68,8 +70,8 @@ func readPES(t *testing.T, b []byte) []pesSummary {
 	}
 	var out []pesSummary
 	for _, x := range pes {
-		pts := int64(x[9]>>1&7)<<30 | int64(x[10])<<22 | int64(x[11]>>1)<<15 | int64(x[12])<<7 | int64(x[13]>>1)
-		s := pesSummary{ms: (pts - 12*3600*90000) / 90}
+		pts := uint64(x[9]>>1&7)<<30 | uint64(x[10])<<22 | uint64(x[11]>>1)<<15 | uint64(x[12])<<7 | uint64(x[13]>>1)
+		s := pesSummary{pts: pts}
 		for i := 46; i+46 <= len(x); i += 46 {
 			if x[i] != mpegts.DataUnitSubtitle {
 				continue
@@ -106,11 +108,13 @@ func TestHeartbeatAndPause(t *testing.T) {
 	if len(pes) != 300 {
 		t.Fatalf("%d PES, want 300", len(pes))
 	}
+	start := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 	for i, p := range pes {
-		if want := int64(80 + 40*i); p.ms != want {
-			t.Fatalf("PES %d at %d ms, want %d", i, p.ms, want)
+		ms := mpegts.TimeOfPTS(p.pts, start).Sub(start).Milliseconds()
+		if want := int64(80 + 40*i); ms != want {
+			t.Fatalf("PES %d at %d ms, want %d", i, ms, want)
 		}
-		paused := p.ms >= 4080 && p.ms < 8080
+		paused := ms >= 4080 && ms < 8080
 		hasPage := false
 		for _, h := range p.headers {
 			if !strings.HasSuffix(h, "FF") {
@@ -118,10 +122,10 @@ func TestHeartbeatAndPause(t *testing.T) {
 			}
 		}
 		if paused && (hasPage || p.rows > 0) {
-			t.Errorf("cue data at %d ms, during the pause", p.ms)
+			t.Errorf("cue data at %d ms, during the pause", ms)
 		}
 		if !hasPage && p.rows == 0 && strings.Join(p.headers, " ") != "8FF 7FF" {
-			t.Errorf("heartbeat at %d ms has headers %v, want [8FF 7FF]", p.ms, p.headers)
+			t.Errorf("heartbeat at %d ms has headers %v, want [8FF 7FF]", ms, p.headers)
 		}
 	}
 }
@@ -147,6 +151,70 @@ func TestRunErrors(t *testing.T) {
 	} {
 		if err := run(args, &bytes.Buffer{}); err == nil {
 			t.Errorf("%v: no error", args[1:])
+		}
+	}
+}
+
+// The clock counts from the Unix epoch: it steps 40 ms per tick over midnight
+// and over the 33-bit wrap, and each cue shows the time of its header's PTS.
+func TestEpochClock(t *testing.T) {
+	const pcrWrap = (1 << 33) * 300
+	wrap := int64(18812) << 33 / 90000 // s; the wrap is 0.9 s later, on 2026-11-24
+	for _, tc := range []struct {
+		name  string
+		start time.Time
+		wraps int
+	}{
+		{"midnight", time.Date(2026, 11, 20, 23, 59, 58, 0, time.UTC), 0},
+		{"wrap", time.Unix(wrap-2, 0).UTC(), 1},
+	} {
+		out := filepath.Join(t.TempDir(), "out.ts")
+		start := tc.start.Format(time.RFC3339)
+		args := []string{appName, "-o", out, "-duration", "6s", "-langs", "swe", "-start", start}
+		if err := run(args, &bytes.Buffer{}); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pcrs []uint64
+		for off := 0; off < len(b); off += mpegts.PacketSize {
+			if pcr, ok := mpegts.PCR(b[off : off+mpegts.PacketSize]); ok {
+				pcrs = append(pcrs, pcr)
+			}
+		}
+		wraps := 0
+		for i := 1; i < len(pcrs); i++ {
+			if d := (pcrs[i] + pcrWrap - pcrs[i-1]) % pcrWrap; d != 40*27000 {
+				t.Fatalf("%s: PCR %d steps %d", tc.name, i, d)
+			}
+			if pcrs[i] < pcrs[i-1] {
+				wraps++
+			}
+		}
+		if len(pcrs) != 150 || wraps != tc.wraps {
+			t.Errorf("%s: %d PCR with %d wraps, want 150 with %d", tc.name, len(pcrs), wraps, tc.wraps)
+		}
+
+		headerTimes := map[string]bool{}
+		for i, p := range readPES(t, b) {
+			at := mpegts.TimeOfPTS(p.pts, tc.start)
+			if want := tc.start.Add(time.Duration(80+40*i) * time.Millisecond); !at.Equal(want) {
+				t.Fatalf("%s: PES %d at %v, want %v", tc.name, i, at, want)
+			}
+			if strings.Join(p.headers, " ") == "888" {
+				headerTimes[at.Format("15:04:05.000")] = true
+			}
+		}
+		stamps := regexp.MustCompile(`Svenska (\S+) \(`).FindAllStringSubmatch(rowTexts(b), -1)
+		if len(stamps) != 3 {
+			t.Errorf("%s: %d cues, want 3", tc.name, len(stamps))
+		}
+		for _, s := range stamps {
+			if !headerTimes[s[1]] {
+				t.Errorf("%s: cue shows %s, which is not the PTS of a page header", tc.name, s[1])
+			}
 		}
 	}
 }

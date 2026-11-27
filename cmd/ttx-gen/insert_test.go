@@ -90,8 +90,8 @@ func TestInsert(t *testing.T) {
 			t.Errorf("%d teletext PES, want 124", len(pes))
 		}
 		for i, p := range pes {
-			if want := int64(10_080+40*i) - 12*3600*1000; p.ms != want {
-				t.Fatalf("PES %d PTS %d ms, want %d", i, p.ms, want)
+			if want := uint64(10_080 + 40*i); p.pts != want*90 {
+				t.Fatalf("PES %d PTS %d, want %d ms", i, p.pts, want)
 			}
 		}
 	}

@@ -30,7 +30,7 @@ go install github.com/Eyevinn/go-teletext/cmd/ttx-gen@latest
 ```
 
 `ttx-gen` writes one subtitle page per language. Every cue shows a sample
-sentence and the UTC time that equals the PTS of the PES that carries the page
+sentence and the UTC time of the PTS of the PES that carries the page
 header, so a player or packager can be checked for both character set
 handling and timing:
 

@@ -45,9 +45,14 @@ header ends the previous page of its magazine. The default page numbers
 
 ## Timing
 
-- PCR and PTS are the UTC time of day (90 kHz), so the PTS of the header PES
-  equals the time printed in the cue: `Svenska 12:00:02.080 (2)`.
-  PTS wraps at midnight (time of day < 2^33 / 90 kHz).
+- PCR and PTS count from 1970-01-01T00:00:00Z and wrap with their 33 bits, every
+  2^33 / 90000 s = 95443.718 s (26.5 hours): PTS = (90000 × Unix time) mod 2^33
+  (`mpegts.EpochPTS`). The clock is continuous over midnight, and its only steps
+  are the 33-bit wraps that receivers handle.
+- The time printed in a cue, `Svenska 12:00:02.080 (2)`, is the time of the PTS
+  of the header PES. A receiver gets it back as k × 2^33 / 90000 s + PTS / 90000 s
+  after the epoch, where k is the number of wraps so far (18812 from 2026-11-24).
+  Any clock within 13 hours of the right time gives k (`mpegts.TimeOfPTS`).
 - PTS = transmission time + `-pts-offset` (default 40 ms, the EN 300 472 decoder retention).
 - A 40 ms tick drives everything: PCR every tick (adaptation-field-only packets
   on their own PID), PAT/PMT every 80 ms, cue events on tick boundaries.

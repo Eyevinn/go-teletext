@@ -29,10 +29,11 @@ Each cue shows a sample sentence and a time stamp, for example
 "Svenska 12:34:56.080 (42)". The page header is sent in one PES and the rows in
 the next, 40 ms later; the time stamp is the PTS of the header PES.
 
-Without -i it writes a teletext-only stream whose PCR and PTS are the UTC time of
-day. With -i it inserts the teletext into an existing transport stream, with PTS
-that follow the input's PCR, and prints the wall-clock time of the PTS
-(-clock wall) or the PTS itself (-clock pts).
+Without -i it writes a teletext-only stream whose PCR and PTS count from
+1970-01-01T00:00:00Z and wrap every 2^33/90000 s (26.5 hours). With -i it
+inserts the teletext into an existing transport stream, with PTS that follow
+the input's PCR, and prints the wall-clock time of the PTS (-clock wall) or
+the PTS itself (-clock pts).
 
 Usage of %s:
 `
